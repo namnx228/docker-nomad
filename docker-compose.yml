@@ -1,14 +1,31 @@
 version: '2.1'
 
 services:
-  nomad:
+  
+  
+  nomad-server:
     image: multani/nomad
+    #image: rms1000watt/nomad:latest
     build: latest
-    command: agent -dev
+    command: agent
     privileged: true
-    network_mode: host
+    #network_mode: host
+    networks:
+     nomad_network:
+      ipv4_address: 172.19.0.3
+    ports:
+    - "4646:4646"
     environment:
       NOMAD_LOCAL_CONFIG: |
+        server {
+          enabled = true
+          bootstrap_expect = 1
+        }
+
+        client {
+          enabled = false
+        }
+        
         datacenter = "${REGION:-test}"
         region     = "${DATACENTER:-test-dc1}"
 
@@ -24,3 +41,123 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:rw
       - /tmp:/tmp
+
+  nomad-client:
+    image: nomad
+    #image: rms1000watt/nomad:latest
+    build: latest
+    command: agent
+    privileged: true
+    #network_mode: host
+    networks:
+     nomad_network:
+      ipv4_address: 172.19.0.4
+    environment:
+      NOMAD_LOCAL_CONFIG: |
+        client {
+          enabled = true
+          servers = ["172.19.0.3:4647"]
+        }
+
+        server {
+          enabled = false
+        }
+        
+        datacenter = "${REGION:-test}"
+        region     = "${DATACENTER:-test-dc1}"
+
+        data_dir = "/nomad/data/"
+
+        bind_addr = "0.0.0.0"
+        advertise {
+          http = "{{ GetPrivateIP }}:4646"
+          rpc  = "{{ GetPrivateIP }}:4647"
+          serf = "{{ GetPrivateIP }}:4648"
+        }
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+      - /tmp:/tmp
+
+  nomad-server2:
+    image: multani/nomad
+    #image: rms1000watt/nomad:latest
+    build: latest
+    command: agent
+    privileged: true
+    #network_mode: host
+    networks:
+     nomad_network:
+      ipv4_address: 172.19.0.5
+    ports:
+      - "5646:4646"
+    environment:
+      NOMAD_LOCAL_CONFIG: |
+        server {
+          enabled = true
+          bootstrap_expect = 1
+        }
+
+        client {
+          enabled = false
+        }
+        
+        datacenter = "${REGION:-test}"
+        region     = "${DATACENTER:-test-dc2}"
+
+        data_dir = "/nomad/data/"
+
+        bind_addr = "0.0.0.0"
+        advertise {
+          http = "{{ GetPrivateIP }}:4646"
+          rpc  = "{{ GetPrivateIP }}:4647"
+          serf = "{{ GetPrivateIP }}:4648"
+        }
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+      - /tmp:/tmp
+
+  nomad-client2:
+    image: nomad
+    #image: rms1000watt/nomad:latest
+    build: latest
+    command: agent
+    privileged: true
+    #network_mode: host
+    networks:
+     nomad_network:
+      ipv4_address: 172.19.0.6
+    environment:
+      NOMAD_LOCAL_CONFIG: |
+        client {
+          enabled = true
+          servers = ["nomad-server2:4647"]
+        }
+
+        server {
+          enabled = false
+        }
+        
+        datacenter = "${REGION:-test}"
+        region     = "${DATACENTER:-test-dc2}"
+
+        data_dir = "/nomad/data/"
+
+        bind_addr = "0.0.0.0"
+        advertise {
+          http = "{{ GetPrivateIP }}:4646"
+          rpc  = "{{ GetPrivateIP }}:4647"
+          serf = "{{ GetPrivateIP }}:4648"
+        }
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+      - /tmp:/tmp
+
+networks:
+ nomad_network:
+  driver: bridge
+  ipam: 
+   config:
+   - subnet: 172.19.0.0/16
